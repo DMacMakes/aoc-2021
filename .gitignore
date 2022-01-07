@@ -352,3 +352,5 @@ MigrationBackup/
 # Danny additions including build folder and exe name of this project
 [Bb]uild/
 *.exe
+desktop.ini
+folderico*.ico
