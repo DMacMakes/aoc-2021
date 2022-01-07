@@ -349,6 +349,14 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 
-# Danny additions including build folder and exe name of this project
-[Bb]uild/
-*.exe
+### ise102 specific
+
+#build folders
+/build/
+
+#Visual studio code config
+/.vscode
+
+#executables
+/base-ise
+/base-ise.exe

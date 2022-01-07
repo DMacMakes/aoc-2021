@@ -1,0 +1,2 @@
+#run = "clang++-7 -I. -I./include -std=c++17 -pthread -o base-ise main.cpp lib/libscn.a lib/libfmt.a && ./base-ise"
+run = "make && ./base-ise"
