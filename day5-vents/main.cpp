@@ -45,7 +45,7 @@ enum Styles
   RED_ALERT
 };
 
-const string VENTS_FILE = "vent-line-locations-test.txt";
+const string VENTS_FILE = "vent-line-locations.txt";
 std::map<int, fmt::text_style> text_styles {};
 
 // Create colour and emphasis styles that work with the fmt library
@@ -170,6 +170,20 @@ vector<Vent> getVentsFromFile(string file_path)
   return vents;
 }
 
+// Checks if a vent has the same beginning and ending y values,
+// making it a vertical line in our grid
+bool isVertical(Vent& vent)
+{
+  return (vent.loc_begin.x == vent.loc_end.x);
+}
+
+// Checks if the vent has the same beginning and ending x values,
+// making it a horizontal line in our grid
+bool isHorizontal(Vent& vent)
+{
+  return (vent.loc_begin.y == vent.loc_end.y);
+}
+
 vector<Vent> getHorizontalAndVerticalVents(vector<Vent>& all_vents)
 {
   // if begin.x == end.x || begin.y ==
@@ -178,60 +192,110 @@ vector<Vent> getHorizontalAndVerticalVents(vector<Vent>& all_vents)
   
   for (Vent& vent : all_vents)
   {
-    if (vent.loc_begin.x == vent.loc_end.x || vent.loc_begin.y == vent.loc_end.y)
-      if (vent.loc_begin.x == vent.loc_end.x) vent.is_vert = true;
-      if (vent.loc_begin.y == vent.loc_end.y) vent.is_horiz = true;
-      hv_vents.push_back(vent);
+      vent.is_vert = isVertical(vent);
+      vent.is_horiz = isHorizontal(vent);
+      if (vent.is_vert || vent.is_horiz)
+      {
+        hv_vents.push_back(vent);
+      }
   }
-  
+  hv_vents.shrink_to_fit();
   return hv_vents;
-  
 }
 
+// A single vent is a line that crosses multiple cells in a grid drawn
+// on the floor of the ocean. The input data provides a beginning point
+// and an end. This function creates a collection of points covering
+// the entire length of a provided vent (currently only horizontal and
+// vertical vents).
+vector<Point2d> getAllVentLocations(Vent& vent)
+{
+  int min = 0;
+  int max = 0;
+  vector<Point2d> all_locations{};
+  if (isHorizontal(vent)) // (vent.is_horiz)
+  {
+    // No guarantee vents beginning is before end. 
+    min = std::min(vent.loc_begin.x, vent.loc_end.x);
+    max = std::max(vent.loc_begin.x, vent.loc_end.x);
+    // add a point for each missing value of x
+    for (int i = min; i <= max; i += 1)
+    {
+      all_locations.push_back({ i, vent.loc_begin.y });
+    }
+
+  }
+  else if (isVertical(vent)) //(vent.is_vert)
+  {
+    min = std::min(vent.loc_begin.y, vent.loc_end.y);
+    max = std::max(vent.loc_begin.y, vent.loc_end.y);
+    // add a point for each missing value of x
+    for (int i = min; i <= max; i += 1)
+    {
+      all_locations.push_back({ vent.loc_begin.x, i });
+    }
+  }
+  else
+  {
+    // vent is neither vertical or horizontal. According to the
+    // rules, it must be a 45 degree line. Gotta find min and max x and y
+    // values then and create our points between by incrementing.
+    // x can go up while y goes down or up, so it'll take a little
+    // thinkin'.
+  }
+
+  return all_locations;
+}
 
 vector<Cell> mapVentsToOceanFloor(vector<Vent>& vents)
 {
-  print("Map {0} vents to ocean floor.\n\n", vents.size());
-  vector<Cell> floor{};
-  int multi_vent_cell_count = 0;
-  for (auto& vent : vents)
-  {
-    vector<Cell>::iterator it;
-    Cell temp_cell = Cell(vent.loc_begin);
-    it = std::find(floor.begin(), floor.end(), temp_cell);// floor.find(temp_cell);
-    if (floor.size() == 0 || it == floor.end())
-    {
-      floor.push_back(std::move(temp_cell));
-    }
-    else
-    {
-      print(text_styles[Styles::RED_ALERT], "Overlap!");
-      print(" Floor already contains cell at {0},{1}.\n",
-        it->location.x, it->location.y);
-      it->vent_count += 1;
-      multi_vent_cell_count += 1;
-    }
     // TODO Fix this so we're checking every location you would
     // have between loc_begin and loc_end. For these horizontal
     // and vertical ones we can probably use something like std::iota
     // to create the iteration?
-    /*auto result = floor.emplace(Cell{ vent.loc_begin });
-    
-    if (!result.second) 
+  print("Mapping {0} vents to ocean floor..\n\n", vents.size());
+  vector<Cell> floor{};
+  //int multi_vent_cell_count = 0;
+  for (auto& vent : vents)
+  {
+    vector<Point2d> vent_locations = getAllVentLocations(vent);
+
+    for (auto& location : vent_locations)
     {
-      print("Found a cell for this vent location - {0},{1} - in the floor already.\n",
-        result.first->location.x, result.first->location.y);
-      // It's already in there, so increment the number of vents at that location
-      result.first->vent_count += 1;
-      busy_cell_count += 1;
+      vector<Cell>::iterator it;
+      Cell temp_cell = Cell(location);
+      it = std::find(floor.begin(), floor.end(), temp_cell);// floor.find(temp_cell);
+      if (floor.size() == 0 || it == floor.end())
+      {
+        floor.push_back(std::move(temp_cell));
+      }
+      else  // A cell on the ocean floor was already created for this location.
+      {
+        //print(text_styles[Styles::RED_ALERT], "Overlap!");
+        //print(" Floor already contains cell at {0},{1}.\n",
+        //  it->location.x, it->location.y);
+        it->vent_count += 1;
+        //multi_vent_cell_count += 1;
+      }
     }
-    */
   }
-  print("\n{0} cells on the floor are split by more than one vent.\n\n", multi_vent_cell_count);
+  //print("\n{0} cells on the floor are split by more than one vent.\n\n", multi_vent_cell_count);
 
   return floor;
 }
 
+void mapVents2(vector<Vent>& vents, vector<vector<int>>& floor)
+{
+  print("Mapping {0} vents to ocean floor..\n\n", vents.size());
+  for (auto& vent : vents)
+  {
+    vector<Point2d> vent_locations = getAllVentLocations(vent);
+    for (auto& location : vent_locations)
+    {
+      floor[location.x][location.y] += 1;
+    }
+  }
+}
 // Read vent start-end points in from file
 // Collect any vents that are straight horizontal or vertical.
 // Decide dimensions of grid based on 
@@ -249,8 +313,8 @@ void checkForOverlappingVents()
   RectExtents gridExtents = getVentGridExtents(hv_vents);
   // TODO: Print out or look at gridextents with debugger.
   print("\n\n");
-  print("Extents: {0},{1} -> {2},{3}\n\n", gridExtents.top_left.x, gridExtents.top_left.y, 
-                                            gridExtents.bot_right.x, gridExtents.bot_right.y);
+  print("Extents: {0},{1} -> {2},{3}\n\n", gridExtents.top_left.x, gridExtents.top_left.y,
+    gridExtents.bot_right.x, gridExtents.bot_right.y);
 
   // go through all the cells (1000x1000=1`000`000 cells. Seems bad.
   // go through every vent, add 1 to an entry in array.
@@ -259,11 +323,38 @@ void checkForOverlappingVents()
   // for each vent I could go through all other vents to see which overlap it?  
   //array<array<int, 100>, 100> ;
 
+  // vector grid 1000 x 1000 (c++ doesn't want 1000x1000 array on stack)
+  auto floor_grid = vector<vector<int>> (1024, vector<int>(1024,0));
+  //array<array<int, 1000>, 1000> ocean_floor_grid{};
+  print("\nMade ocean floor bro\n");
+  mapVents2(hv_vents, floor_grid);
+  print("\nDone.\n");
+
+  int overlaps = 0;
+  for (int i = 0; i < 1024; i++)
+  {
+    for (int j = 0; j < 1024; j++)
+    {
+      if (floor_grid[i][j] > 1) overlaps += 1;
+    }
+  }
+  print("Overlaps: {0}\n", overlaps);
   // Alternative:
   // Go through all the vents, adding cells to a map via a custom compare lambda
   // that checks if begin and end points are equal. Point2D already has a == operator.
-  vector<Cell> ocean_floor{ mapVentsToOceanFloor(hv_vents) };
-
+  /* vector<Cell> ocean_floor{ mapVentsToOceanFloor(hv_vents) };
+  int multi_vent_cell_count = 0;
+  for (auto& cell : ocean_floor)
+  {
+    if (cell.vent_count > 1)
+    {
+      multi_vent_cell_count += 1;
+      print(text_styles[Styles::RED_ALERT], "{0}", cell.vent_count);
+      //print(" vents cross the cell at {0},{1}\n",
+      //  cell.location.x, cell.location.y);
+    }
+  }
+  print("\n\nFound {0} multi-vent cells on ocean floor, out of a total {1} cells.\n\n", multi_vent_cell_count, ocean_floor.size()); */
 }
 
 int main() {

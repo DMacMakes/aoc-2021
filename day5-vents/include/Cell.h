@@ -10,7 +10,8 @@ public:
                                   // version of the cell :\
   
   //vector<Vent&> vents;
-  Cell(Point2d location) : location{ location } {}  // constructor
+  Cell(Point2d location)   // construct with a location of a point (from vent data)
+    : location{ location }, vent_count{ 1 } {}  // so vent_count = 1
 
   // Add == support so Cell can be used in set/unordered_set
   friend bool operator==(const Cell& lhs, const Cell& rhs)
