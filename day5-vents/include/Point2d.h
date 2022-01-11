@@ -16,6 +16,8 @@ namespace textpixels
 
     friend Point2d operator + (Point2d const&, Point2d const&);
     friend bool operator == (Point2d const& p1, Point2d const& p2);
+    friend bool operator < (const Point2d& lhs, const Point2d& rhs);
+
 
     /// Copy assignment operator: point1 = point2; will copy point2 values to point1.
     Point2d& operator =(const Point2d& other);

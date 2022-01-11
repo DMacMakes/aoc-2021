@@ -167,6 +167,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\Cell.h" />
     <ClInclude Include="include\ise102.h" />
     <ClInclude Include="include\Point2d.h" />
   </ItemGroup>

@@ -27,9 +27,12 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <array>
 #include <fstream>
+#include <set>
 #include "include/ise102.h"
 #include "include/Point2d.h"
+#include "include/Cell.h"
 using namespace std;
 using scn::scan;
 using textpixels::Point2d;
@@ -42,6 +45,7 @@ enum Styles
   RED_ALERT
 };
 
+const string VENTS_FILE = "vent-line-locations-test.txt";
 std::map<int, fmt::text_style> text_styles {};
 
 // Create colour and emphasis styles that work with the fmt library
@@ -90,8 +94,10 @@ void greetInColour()
 // A vent has a beginning point and end point, each two dimensional (x,y)
 struct Vent
 {
-  Point2d begin{};
-  Point2d end{};
+  Point2d loc_begin{};
+  Point2d loc_end{};
+  bool is_horiz = false;
+  bool is_vert = false;
 };
 
 // A rectangle defined by two points on an x,y plane, the top left
@@ -102,16 +108,8 @@ struct RectExtents
   Point2d bot_right{};
 };
 
-struct Cell
-{
-  textpixels::Point2d location{};
-  //vector<Vent&> vents;
-  int vent_count{ 0 };
-};
 
-//vector<vector<Cell>> ocean_floor;
-// vents vertical or horizontal (one dimensional)
-//vector<vector<Cell>> vents_vh; // maybe use cells here?
+
 
 // If we drew a bounding box around all the vents on the ocean
 // floor, what would the location of the top left and bottom right
@@ -120,23 +118,23 @@ RectExtents getVentGridExtents(vector<Vent>& vents)
 {
   // Start out with the x,y coordinates of the first vent, 
   // work out from there.
-  static RectExtents extents{ vents[0].begin, vents[0].begin };
+  static RectExtents extents{ vents[0].loc_begin, vents[0].loc_end };
 
   for (auto& vent : vents)
   {
     // if either end of the vent is further up or left than the current top
     // left extent, make that the new top or left extent.
-    if (extents.top_left.x > vent.begin.x) extents.top_left.x = vent.begin.x;
-    if (extents.top_left.x > vent.end.x) extents.top_left.x = vent.end.x;
-    if (extents.top_left.y > vent.begin.y) extents.top_left.y = vent.begin.y;
-    if (extents.top_left.y > vent.end.y) extents.top_left.y = vent.end.y;
+    if (extents.top_left.x > vent.loc_begin.x) extents.top_left.x = vent.loc_begin.x;
+    if (extents.top_left.x > vent.loc_end.x) extents.top_left.x = vent.loc_end.x;
+    if (extents.top_left.y > vent.loc_begin.y) extents.top_left.y = vent.loc_begin.y;
+    if (extents.top_left.y > vent.loc_end.y) extents.top_left.y = vent.loc_end.y;
 
     // If either end of vent is further down or right than the current bottom
     // right extent, make that the new bottom or right extent. (get lowest x or y)
-    if (extents.bot_right.x < vent.begin.x) extents.bot_right.x = vent.begin.x;
-    if (extents.bot_right.x < vent.end.x) extents.bot_right.x = vent.end.x;
-    if (extents.bot_right.y < vent.begin.y) extents.bot_right.y = vent.begin.y;
-    if (extents.bot_right.y < vent.end.y) extents.bot_right.y = vent.end.y;
+    if (extents.bot_right.x < vent.loc_begin.x) extents.bot_right.x = vent.loc_begin.x;
+    if (extents.bot_right.x < vent.loc_end.x) extents.bot_right.x = vent.loc_end.x;
+    if (extents.bot_right.y < vent.loc_begin.y) extents.bot_right.y = vent.loc_begin.y;
+    if (extents.bot_right.y < vent.loc_end.y) extents.bot_right.y = vent.loc_end.y;
   }
 
   return extents;
@@ -158,11 +156,11 @@ vector<Vent> getVentsFromFile(string file_path)
     Vent vent{};
     //int a, b, c, d;
     scn::scan(line, "{0},{1} -> {2},{3}", 
-                vent.begin.x, vent.begin.y, vent.end.x, vent.end.y);
+                vent.loc_begin.x, vent.loc_begin.y, vent.loc_end.x, vent.loc_end.y);
     // scan in the points on either side of the arrow, 
     //print(text_styles[RED_ALERT], "Got a line:", line);
-    print("start: x={0} y={1}", vent.begin.x, vent.begin.y);
-    print("\tend: x={0} y={1} \n", vent.end.x, vent.end.y);
+    //print("start: x={0} y={1}", vent.loc_begin.x, vent.loc_begin.y);
+    //print("\tend: x={0} y={1} \n", vent.loc_end.x, vent.loc_end.y);
     vents.push_back(vent);
   } while (!result.empty()); // line != "");
   vents.shrink_to_fit();
@@ -180,12 +178,58 @@ vector<Vent> getHorizontalAndVerticalVents(vector<Vent>& all_vents)
   
   for (Vent& vent : all_vents)
   {
-    if (vent.begin.x == vent.end.x || vent.begin.y == vent.end.y) 
+    if (vent.loc_begin.x == vent.loc_end.x || vent.loc_begin.y == vent.loc_end.y)
+      if (vent.loc_begin.x == vent.loc_end.x) vent.is_vert = true;
+      if (vent.loc_begin.y == vent.loc_end.y) vent.is_horiz = true;
       hv_vents.push_back(vent);
   }
   
   return hv_vents;
   
+}
+
+
+vector<Cell> mapVentsToOceanFloor(vector<Vent>& vents)
+{
+  print("Map {0} vents to ocean floor.\n\n", vents.size());
+  vector<Cell> floor{};
+  int multi_vent_cell_count = 0;
+  for (auto& vent : vents)
+  {
+    vector<Cell>::iterator it;
+    Cell temp_cell = Cell(vent.loc_begin);
+    it = std::find(floor.begin(), floor.end(), temp_cell);// floor.find(temp_cell);
+    if (floor.size() == 0 || it == floor.end())
+    {
+      floor.push_back(std::move(temp_cell));
+    }
+    else
+    {
+      print(text_styles[Styles::RED_ALERT], "Overlap!");
+      print(" Floor already contains cell at {0},{1}.\n",
+        it->location.x, it->location.y);
+      it->vent_count += 1;
+      multi_vent_cell_count += 1;
+    }
+    // TODO Fix this so we're checking every location you would
+    // have between loc_begin and loc_end. For these horizontal
+    // and vertical ones we can probably use something like std::iota
+    // to create the iteration?
+    /*auto result = floor.emplace(Cell{ vent.loc_begin });
+    
+    if (!result.second) 
+    {
+      print("Found a cell for this vent location - {0},{1} - in the floor already.\n",
+        result.first->location.x, result.first->location.y);
+      // It's already in there, so increment the number of vents at that location
+      result.first->vent_count += 1;
+      busy_cell_count += 1;
+    }
+    */
+  }
+  print("\n{0} cells on the floor are split by more than one vent.\n\n", multi_vent_cell_count);
+
+  return floor;
 }
 
 // Read vent start-end points in from file
@@ -196,18 +240,30 @@ vector<Vent> getHorizontalAndVerticalVents(vector<Vent>& all_vents)
 // Mark them in a grid of points that have 
 void checkForOverlappingVents()
 {
-  vector<Vent> all_vents = getVentsFromFile("vent-line-locations.txt");
+  vector<Vent> all_vents = getVentsFromFile(VENTS_FILE);
   print("\n\n");
   print(text_styles[Styles::LOUD_FRIENDLY], "Found {0} vents.", all_vents.size());
   print("\n\n");
   auto hv_vents = getHorizontalAndVerticalVents(all_vents);
   print(text_styles[Styles::STONE], "Found {0} horizontal or vertical vents", hv_vents.size());
   RectExtents gridExtents = getVentGridExtents(hv_vents);
-  // TODO: Print out our look at gridextents with debugger.
+  // TODO: Print out or look at gridextents with debugger.
   print("\n\n");
   print("Extents: {0},{1} -> {2},{3}\n\n", gridExtents.top_left.x, gridExtents.top_left.y, 
                                             gridExtents.bot_right.x, gridExtents.bot_right.y);
-  // Read file into all_vents;  
+
+  // go through all the cells (1000x1000=1`000`000 cells. Seems bad.
+  // go through every vent, add 1 to an entry in array.
+  // Read file into all_vents;
+  // Do linear algebra on all the lines seeing which overlap at what location.
+  // for each vent I could go through all other vents to see which overlap it?  
+  //array<array<int, 100>, 100> ;
+
+  // Alternative:
+  // Go through all the vents, adding cells to a map via a custom compare lambda
+  // that checks if begin and end points are equal. Point2D already has a == operator.
+  vector<Cell> ocean_floor{ mapVentsToOceanFloor(hv_vents) };
+
 }
 
 int main() {

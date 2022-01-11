@@ -29,5 +29,8 @@
     <ClInclude Include="include\Point2d.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\Cell.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

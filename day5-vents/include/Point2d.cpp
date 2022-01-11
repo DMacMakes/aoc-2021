@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "point2d.h"
 namespace textpixels
 {
@@ -31,6 +31,15 @@ namespace textpixels
   bool operator == (Point2d const& p1, Point2d const& p2)
   {
     return (p1.x == p2.x && p1.y == p2.y);
+  }
+
+  // Returns true if the x value of lhs is less than that of
+  // rhs until I think of a better definition. Needed to use
+  // set (which is inherently ordered) as I don't know what
+  // to provide for a hash in unordered set 🤷‍♂️
+  bool operator < (const Point2d& lhs, const Point2d& rhs)
+  {
+    return (lhs.x < rhs.x);
   }
 
   /// Copy assignment operator: point1 = point2; will copy point2 values to point1.
