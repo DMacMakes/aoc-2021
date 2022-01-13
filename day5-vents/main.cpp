@@ -30,6 +30,7 @@
 #include <array>
 #include <fstream>
 #include <set>
+#include <cmath>
 #include "include/ise102.h"
 #include "include/Point2d.h"
 #include "include/Cell.h"
@@ -242,8 +243,40 @@ vector<Point2d> getAllVentLocations(Vent& vent)
     // values then and create our points between by incrementing.
     // x can go up while y goes down or up, so it'll take a little
     // thinkin'.
-  }
 
+    // Get starting and ending x values. The difference will be the 
+    // same as that of the y, because diagonal. Need a library that can
+    // create a range of values from a to be regardless of which is larger,
+    // counting up or counting down.
+    Point2d start, end;
+    if (vent.loc_begin.x < vent.loc_end.x)
+    {
+      start = vent.loc_begin;
+      end = vent.loc_end;
+    }
+    else
+    {
+      start = vent.loc_end;
+      end = vent.loc_begin;
+    }
+    int difference = end.x - start.x;
+    auto points = std::vector<Point2d>(difference+1); 
+    // map out all the 45 degree line points between start and end.
+    for (int i = 0; i <= difference; i++)
+    {
+      points[i].x = start.x + i;
+      // y may go from high to low, low to high, so account for them.
+      if (start.y < end.y)
+      {
+        points[i].y = start.y + i;
+      }
+      else
+      {
+        points[i].y = start.y - i;
+      }
+      all_locations.push_back(points[i]);
+    }
+  }
   return all_locations;
 }
 
@@ -327,7 +360,9 @@ void checkForOverlappingVents()
   auto floor_grid = vector<vector<int>> (1024, vector<int>(1024,0));
   //array<array<int, 1000>, 1000> ocean_floor_grid{};
   print("\nMade ocean floor bro\n");
-  mapVents2(hv_vents, floor_grid);
+  //mapVents2(hv_vents, floor_grid);
+  mapVents2(all_vents, floor_grid);
+
   print("\nDone.\n");
 
   int overlaps = 0;
