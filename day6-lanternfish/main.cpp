@@ -84,10 +84,10 @@ vector<int> getFishFromFile(string file_path)
   auto result = scn::make_result(fish_file);
 
   result = scn::getline(result.range(), line, '\n');
-  print("\nline:\n{0}\n", line);
+  //print("\nline:\n{0}\n", line);
   if(!line.empty())
   {
-    print("\nGot a line from file {0} chars long.\n", line.size());
+    //print("\nGot a line from file {0} chars long.\n", line.size());
     //size_t pos = 0;
     for(const char& c : line)
     {
@@ -102,15 +102,73 @@ vector<int> getFishFromFile(string file_path)
   return fish;
 }
 
+void printFishes(vector<int>& fishes, string message)
+{
+  print(message);
+  for( int fishy : fishes )
+  {
+    print("{0},", fishy);
+  }
+  // erase last comma, add newline.
+  print("\b\n");
+}
+
+void simulateFishes(vector<int>& fishes, int days_to_sim)
+{
+  const int ADULT_SPAWN_CYCLE = 6;
+  const int JUVENILE_SPAWN_CYCLE = 8;
+  int days_left = days_to_sim;
+  // each day
+  // subtract 1 from all fish unless they're on 0,
+  // in chich case loop to 6.
+  // if you had to loop, spawn another fish into the collection with
+  // 8 days remaining.
+  print("Simulating...");
+  for(; days_to_sim > 0; days_to_sim--)
+  {
+    // will this feed us fish for ever when we use for - in?
+    // No, iterator isn't updated after loop begins.
+    // for ( auto& fishy : fishes)
+    // using auto, the addition of a new fish led to skipping of one entry,
+    // so switching to a manual iterator. Also grabbing the fish count
+    // before growing the vector in case of hijinx.
+    print("Day {0}.\n", days_left - days_to_sim + 1);
+    int fish_count = fishes.size();
+    for (int j = 0; j < fish_count; j++)
+    {
+      //int& fishy = fishes[j];
+      if ( fishes[j] > 0 )
+      {
+        fishes[j] -= 1;
+      } else
+      {
+        fishes[j] = ADULT_SPAWN_CYCLE;
+        fishes.push_back(JUVENILE_SPAWN_CYCLE);
+      }
+    }
+    // printFishes(fishes, "After " + to_string(days_left - days_to_sim +1) + " days: ");
+  }
+}
 
 int main() {
   //clearScreen();
   createStyles();
   //greetInColour();
+  const int DAYS_TO_SIM = 160; //80; //18;
+  
+  //vector<int> fishes {3,4,3,1,2};
   auto fishes = getFishFromFile(FISH_FILE);
   print("Got {0} lantern fish.\n", fishes.size());  
-  for( int fishy : fishes )
-  {
-    print("{0},", fishy);
-  }
+
+   
+  //printFishes(fishes, "Initial state: ");
+  // TODO: Do a test using the example data first to make sure it works.
+  // TODO: Simulate the spawning of lanternfish, starting with these 80, for 300 days. 
+  // FEARRR!: Will it become too much to store? Is this an exercise in allocation? Will it crash?
+  simulateFishes(fishes, DAYS_TO_SIM);
+
+  // Might need threads to make this perform beyond day 160,
+  // though you'd need locks during adds.
+  print("\nAfter {0} days we have ", DAYS_TO_SIM);
+  print(text_styles[Styles::LOUD_FRIENDLY], "{0} fish.\n", fishes.size());
 }
