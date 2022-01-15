@@ -1,5 +1,5 @@
-﻿#pragma once
-#include "point2d.h"
+#pragma once
+#include "include/Point2d.h"
 namespace textpixels
 {
   //////// Constructors
@@ -15,7 +15,7 @@ namespace textpixels
   }
 
   /// Copy constructor takes another Point2D as argument
-  Point2d::Point2d(const Point2d& other)
+  Point2d::Point2d(Point2d const& other)
   {
     x = other.x;
     y = other.y;
@@ -37,13 +37,13 @@ namespace textpixels
   // rhs until I think of a better definition. Needed to use
   // set (which is inherently ordered) as I don't know what
   // to provide for a hash in unordered set 🤷‍♂️
-  bool operator < (const Point2d& lhs, const Point2d& rhs)
+  bool operator < (Point2d const& lhs, Point2d const& rhs)
   {
     return (lhs.x < rhs.x);
   }
 
   /// Copy assignment operator: point1 = point2; will copy point2 values to point1.
-  Point2d& Point2d::operator =(const Point2d& other)
+  Point2d& Point2d::operator =(Point2d const& other)
   {
     // check for self-assignment
     if (&other == this)
@@ -56,14 +56,14 @@ namespace textpixels
   ///////// Regular methods 
 
   /// Copy another Point2D's x and y
-  void Point2d::copy(const Point2d& other)
+  void Point2d::copy(Point2d const& other)
   {
     x = other.x;
     y = other.y;
   }
 
 
-  bool Point2d::isEqualTo(const Point2d& other)
+  bool Point2d::isEqualTo(Point2d const& other)
   {
     return(x == other.x && y == other.y);
   }

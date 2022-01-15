@@ -146,7 +146,7 @@ vector<Vent> getVentsFromFile(string file_path)
   // Grab the file handle in a way scn can keep it alive.
   scn::owning_file vents_file(file_path.c_str(), "r");
   vector<Vent> vents{};
-  vents.reserve(1000);
+  //vents.reserve(1000);
   string line{};
   auto result = scn::make_result(vents_file);
 
@@ -164,9 +164,9 @@ vector<Vent> getVentsFromFile(string file_path)
     //print("\tend: x={0} y={1} \n", vent.loc_end.x, vent.loc_end.y);
     vents.push_back(vent);
   } while (!result.empty()); // line != "");
-  vents.shrink_to_fit();
+  //vents.shrink_to_fit();
   // Clean up memory/file handles
-  if(vents_file.is_open()) vents_file.close();
+  //if(vents_file.is_open()) vents_file.close();
 
   return vents;
 }
@@ -189,7 +189,7 @@ vector<Vent> getHorizontalAndVerticalVents(vector<Vent>& all_vents)
 {
   // if begin.x == end.x || begin.y ==
   vector<Vent> hv_vents{};
-  hv_vents.reserve(all_vents.size());  // hold up to all vents
+  //hv_vents.reserve(all_vents.size());  // hold up to all vents
   
   for (Vent& vent : all_vents)
   {
@@ -200,7 +200,7 @@ vector<Vent> getHorizontalAndVerticalVents(vector<Vent>& all_vents)
         hv_vents.push_back(vent);
       }
   }
-  hv_vents.shrink_to_fit();
+  //hv_vents.shrink_to_fit();
   return hv_vents;
 }
 
@@ -343,27 +343,19 @@ void checkForOverlappingVents()
   print("\n\n");
   auto hv_vents = getHorizontalAndVerticalVents(all_vents);
   print(text_styles[Styles::STONE], "Found {0} horizontal or vertical vents", hv_vents.size());
+  
   RectExtents gridExtents = getVentGridExtents(hv_vents);
-  // TODO: Print out or look at gridextents with debugger.
-  print("\n\n");
+  print("\n\n"); 
   print("Extents: {0},{1} -> {2},{3}\n\n", gridExtents.top_left.x, gridExtents.top_left.y,
     gridExtents.bot_right.x, gridExtents.bot_right.y);
 
-  // go through all the cells (1000x1000=1`000`000 cells. Seems bad.
-  // go through every vent, add 1 to an entry in array.
-  // Read file into all_vents;
-  // Do linear algebra on all the lines seeing which overlap at what location.
-  // for each vent I could go through all other vents to see which overlap it?  
-  //array<array<int, 100>, 100> ;
-
-  // vector grid 1000 x 1000 (c++ doesn't want 1000x1000 array on stack)
+  //ocean floor mapped to a grid
   auto floor_grid = vector<vector<int>> (1024, vector<int>(1024,0));
-  //array<array<int, 1000>, 1000> ocean_floor_grid{};
-  print("\nMade ocean floor bro\n");
+  
+  // Part 1 was horizontal, vertical vents only.
   //mapVents2(hv_vents, floor_grid);
+  // Part 2 is all vents.
   mapVents2(all_vents, floor_grid);
-
-  print("\nDone.\n");
 
   int overlaps = 0;
   for (int i = 0; i < 1024; i++)
@@ -374,22 +366,7 @@ void checkForOverlappingVents()
     }
   }
   print("Overlaps: {0}\n", overlaps);
-  // Alternative:
-  // Go through all the vents, adding cells to a map via a custom compare lambda
-  // that checks if begin and end points are equal. Point2D already has a == operator.
-  /* vector<Cell> ocean_floor{ mapVentsToOceanFloor(hv_vents) };
-  int multi_vent_cell_count = 0;
-  for (auto& cell : ocean_floor)
-  {
-    if (cell.vent_count > 1)
-    {
-      multi_vent_cell_count += 1;
-      print(text_styles[Styles::RED_ALERT], "{0}", cell.vent_count);
-      //print(" vents cross the cell at {0},{1}\n",
-      //  cell.location.x, cell.location.y);
-    }
-  }
-  print("\n\nFound {0} multi-vent cells on ocean floor, out of a total {1} cells.\n\n", multi_vent_cell_count, ocean_floor.size()); */
+  
 }
 
 int main() {

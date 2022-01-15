@@ -20,9 +20,9 @@ else
 endif
 
 OUTDIR=build
-SOURCES=main.cpp Point2d.cpp
+SOURCES=main.cpp 
 #src/file.cpp src/locale.cpp src/reader.cpp src/vscan.cpp
-EXE=vents
+EXE=lanternfish
 # strip the src/ from the sources 
 #SOURCESNOFOLDERS=main.cpp $(patsubst src/%.cpp, %.cpp, $(SROUCES))
 OBJ=$(patsubst %.cpp, $(OUTDIR)/%.o, $(SOURCES))
