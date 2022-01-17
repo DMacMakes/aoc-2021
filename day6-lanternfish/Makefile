@@ -20,7 +20,7 @@ else
 endif
 
 OUTDIR=build
-SOURCES=main.cpp 
+SOURCES=main.cpp timer.cpp
 #src/file.cpp src/locale.cpp src/reader.cpp src/vscan.cpp
 EXE=lanternfish
 # strip the src/ from the sources 
