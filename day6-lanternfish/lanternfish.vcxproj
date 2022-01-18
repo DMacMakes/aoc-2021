@@ -113,6 +113,8 @@
       <LanguageStandard>stdcpp14</LanguageStandard>
       <AdditionalOptions>/EHsc %(AdditionalOptions)</AdditionalOptions>
       <PreprocessorDefinitions>_MBCS;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions) </PreprocessorDefinitions>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -163,8 +165,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="include\Point2d.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Point2d.cpp" />
+    <ClCompile Include="timer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Cell.h" />

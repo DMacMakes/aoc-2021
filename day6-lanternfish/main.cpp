@@ -32,9 +32,12 @@ enum Styles
   RED_ALERT
 };
 
-const uint8_t ADULT_SPAWN_CYCLE = 6;
-const uint8_t JUVENILE_SPAWN_CYCLE = 8;
+const size_t ADULT_SPAWN_CYCLE = 6;
+const size_t JUVENILE_SPAWN_CYCLE = 8;
+const size_t SPAWNING_BUFFER = 9;
+const size_t SPAWNING = 0;
 const string FISH_FILE = "lanternfish.txt";
+const size_t FISH_N_BUFFER = 10;
 std::map<int, fmt::text_style> text_styles {};
 
 // Create colour and emphasis styles that work with the fmt library
@@ -126,7 +129,6 @@ atomic_uint64_t fishes_spawned_today = 0;
 void simulateDay(vector<uint8_t> fishes, const uint64_t lower, const uint64_t upper)
 {
   int fishes_spawned = 0;
-  // work with the reference, remember to use ref to call this so the reference actually works.
   for (uint64_t j = 0; j <= upper; j++)
     {
       //int& fishy = fishes[j];
@@ -136,27 +138,57 @@ void simulateDay(vector<uint8_t> fishes, const uint64_t lower, const uint64_t up
       } else
       {
         fishes[j] = ADULT_SPAWN_CYCLE;
-        //fishes.push_back(JUVENILE_SPAWN_CYCLE);
-        // update atomic new fish counter
         fishes_spawned += 1;
       }
     }
     fishes_spawned_today += fishes_spawned;
 }
 
-int func() { return 1; }
+
+uint64_t simulateFishThreaded(vector<uint8_t> fishes, int days_to_sim)
+{
+  int days_left = days_to_sim;
+
+  uint64_t fishes_count = fishes.size();
+  uint64_t fishes_spawned_today = 0;
+
+  fishes.reserve(800'000'000);
+  for (; days_left > 0; days_left--)
+  {
+    fishes_count = fishes.size();
+    fishes_spawned_today = 0;
+    
+    for (uint64_t i = 0; i < fishes_count; i++)
+    {
+      if (fishes[i] > 0)
+      {
+        fishes[i] -= 1;
+      }
+      else
+      {
+        fishes[i] = ADULT_SPAWN_CYCLE;
+        fishes_spawned_today += 1;
+      }
+    } 
+    if (fishes_spawned_today > 0)
+      // Add newly spawned fish to the collection as juveniles (longer spawn cycle)
+      fishes.resize(fishes_count + fishes_spawned_today, JUVENILE_SPAWN_CYCLE);
+  }
+  return(static_cast<uint64_t>(fishes.size()));
+}
 
 uint64_t simulateFishPortion(vector<uint8_t> fishes, int days_to_sim)
 {
   // simulaaate
-  //delay(50);
   int days_left = days_to_sim;
-  fishes.reserve(1'000'000'000); // reserve room for 1 billion fish
-  for(; days_left > 0; days_left--)
+  int num_threads = 8;
+  // simulate days until there are enough fish to multi thread 
+  uint64_t fishes_count = fishes.size();
+  uint64_t fishes_spawned_today = 0;
+  for (; fishes.size() < 8; days_left--)
   {
-    uint64_t fishes_count = fishes.size();
-    uint64_t fishes_spawned_today = 0;
-    // work with the reference, remember to use ref to call this so the reference actually works.
+    fishes_count = fishes.size();
+    fishes_spawned_today = 0;
     for (uint64_t i = 0; i < fishes_count; i++)
     {
       if ( fishes[i] > 0 )
@@ -165,8 +197,6 @@ uint64_t simulateFishPortion(vector<uint8_t> fishes, int days_to_sim)
       } else
       {
         fishes[i] = ADULT_SPAWN_CYCLE;
-        //fishes.push_back(JUVENILE_SPAWN_CYCLE);
-        // update atomic new fish counter
         fishes_spawned_today += 1;
       }
     }
@@ -174,14 +204,32 @@ uint64_t simulateFishPortion(vector<uint8_t> fishes, int days_to_sim)
       // Add newly spawned fish to the collection as juveniles (longer spawn cycle)
       fishes.resize(fishes_count + fishes_spawned_today, JUVENILE_SPAWN_CYCLE);
   }
-    
-    // do all the fish spawn day iterating
-  // if any have spawned, add the spawned dudes to this vector.
-  // finally, return a vector (i guess each will need one named)
-  // Actually, only need to return the size of the vector at end of x days.
-  // this would be a good time to use a future: 
-  // https://stackoverflow.com/questions/7686939/c-simple-return-value-from-stdthread
-  return static_cast<uint64_t>(fishes.size()); // final number of fishies goes here
+  
+  // With 4 or more total fish, pass them off to threads (via futures/async)
+  // to be simulated.
+  const uint64_t starting_fish_count = fishes.size();
+  uint64_t total_fish{ 0 };
+
+  vector<future<uint64_t>> futures (num_threads);
+  for (int i = 0; i < num_threads; i++)
+  {
+    size_t start = (starting_fish_count / num_threads) * i;
+    size_t end = (starting_fish_count / num_threads) * (i+1);
+    if (i == num_threads-1) end = starting_fish_count;
+    //print("Futuring portion with indices {0} to {1}..\n", start, end);
+    vector<uint8_t> portion (fishes.begin()+start,
+                            fishes.begin()+end);
+    futures[i] = std::async(
+        simulateFishThreaded, portion, days_left);
+    //total_fish += simulateFishThreaded(portion, days_to_sim);
+  }
+  vector<uint64_t> sim_results(num_threads,0);
+  for( int i = 0; i < num_threads; i++ )
+  {
+    sim_results[i] = futures[i].get();
+    total_fish += sim_results[i];
+  } 
+  return total_fish; // final number of fishies goes here
 }
 
 uint64_t simulateFishes(vector<uint8_t>& starting_fishes, const int days_to_sim)
@@ -189,183 +237,138 @@ uint64_t simulateFishes(vector<uint8_t>& starting_fishes, const int days_to_sim)
   dmac::Timer timer;
   
   const uint64_t starting_fish_count = starting_fishes.size();
-  const int num_threads=8;
-  timer.start();
-  vector<future<uint64_t>> futures (num_threads);
-  for (int f = 0; f < num_threads; f++)
+  const int slices=300;
+  uint64_t total_fish_after_sim {0};
+  for (int i = 0; i < slices; i++)
   {
-    //std::future<uint64_t> ret = std::async(&func);
-    int start = (starting_fish_count / num_threads) * f;
-    int end = (starting_fish_count / num_threads) * (f+1);
-    if (f == num_threads-1) end = starting_fish_count;
-    print("creating portion with indices {0} to {1}\n", start, end);
+    timer.start();
+    int start = (starting_fish_count / slices) * i;
+    int end = (starting_fish_count / slices) * (i+1);
+    if (i == slices-1) end = starting_fish_count;
+    print("Simulating slice {0} to {1}..\n", start, end);
     vector<uint8_t> portion (starting_fishes.begin()+start,
                             starting_fishes.begin()+end);
-    futures[f] = std::async(
-        simulateFishPortion, portion, days_to_sim);
-  }
-  vector<uint64_t> sim_results(num_threads,0);
-  uint64_t total_fish_after_sim {0};
-  for( int f = 0; f < num_threads; f++ )
-  {
-    sim_results[f] = futures[f].get();
-    total_fish_after_sim += sim_results[f];
+    total_fish_after_sim += simulateFishPortion(portion, days_to_sim);
+    print(text_styles[Styles::LOUD_FRIENDLY], "{0}", i+1);
+    print(text_styles[Styles::LOUD_FRIENDLY], "/{0}ths of total fish : {1}.\n",
+      slices, total_fish_after_sim);
+    timer.stop();
+    print("Slice took {0} seconds.\n", timer.timeTakenSeconds());
   }
   print(text_styles[Styles::LOUD_FRIENDLY], "\n\nTotal fish after {0} days: {1}.\n\n",
       days_to_sim, total_fish_after_sim);
-  //int i = ret.get();
-  //int days_left = days_to_sim;
-  // each day
-  // subtract 1 from all fish unless they're on 0,
-  // in chich case loop to 6.
-  // if you had to loop, spawn another fish into the collection with
-  // 8 days remaining.
-  /*print("Simulating...");
-  int num_threads = 4;
-  // create num_threads collections containing their portion of the starting_fishes.
-  // Pass those containers to the threads, so noone's sharing.
-  const uint64_t starting_fish_count = starting_fishes.size();
-  vector<thread> threads {};
-  for(int i =0; i < num_threads; i++)
-  {
-    // create a container with 1/num_threads of the starting fishes
-    // pass it to a thread to simulate. 
-    int start = (starting_fish_count / 4) * i;
-    int end = (starting_fish_count / 4) * i+1;
-    if (i == num_threads-1) end = starting_fish_count;
-    vector<uint8_t> portion (starting_fishes.begin()+start,
-                            starting_fishes.begin()+end);
-    threads.push_back(thread(simulateFishPortion, portion, days_to_sim));
-  }
-
-    for ( auto& th : threads )
-    {
-      if(th.joinable())
-        th.join();
-    }
-    */
-  /*
-  for(; days_left > 0; days_left--)
-  {
-    vector<thread> threads {};
-    // Using manual iterator because ranged loop was missing entries when I added
-    // to vector. Also grabbing the fish count before growing the vector in case of hijinx.
-    
-    
-    const uint64_t fish_count = fishes.size();
-    fishes_spawned_today = 0;
-    // Divide collection into 4 parts so it can be sent to four threads.
-    // Will a reference work? will this be too much memory usage/copying?
-    // Create some threads
-    // Ask each to process fish_count / num_threads fish, have them record how many
-    // fish must be added to the vector. When they are done, they can lock the 
-    // "fish_spawned_today" variable and add to it.
-    for(int i = 0; i<num_threads; i++)
-    {
-      uint64_t start = (fish_count / num_threads) * i;
-      uint64_t end = (fish_count / num_threads) * (i+1);
-      if (i == num_threads-1) end = fish_count - 1;
-      threads.push_back(thread(simulateDay, start, end));
-    }
-    for ( auto& th : threads )
-    {
-      if(th.joinable())
-        th.join();
-    }*/
-    timer.stop();
-    //When all threads have joined,
-    // use fishes.resize(fish_spawned_today, JUVENILE_SPAWN_CYCLE) to add all the
-    // extras at once.. or use a for loop if that reallocates too much.
-    /*if (fishes_spawned_today > 0) 
-      fishes.resize(fish_count + fishes_spawned_today, JUVENILE_SPAWN_CYCLE);
-    // printFishes(fishes, "After " + to_string(days_left - days_to_sim +1) + " days: ");
-    print("Day {0}, {1} fish.\n", days_to_sim - days_left + 1, fishes.size()); 
-  }*/
-  print("Time to sim: {0} seconds.", timer.timeTakenSeconds());
   return(total_fish_after_sim);
 }
 
-
-/*void simulateFishesAllOneContainer(const int days_to_sim)
+void simulateFishIndividually(const int& days_to_sim)
 {
-  
-  int days_left = days_to_sim;
-  dmac::Timer timer;
-  // each day
-  // subtract 1 from all fish unless they're on 0,
-  // in chich case loop to 6.
-  // if you had to loop, spawn another fish into the collection with
-  // 8 days remaining.
-  print("Simulating...");
-  timer.start();
-  int num_threads = 4;
-  for(; days_left > 0; days_left--)
-  {
-    vector<thread> threads {};
-    // Using manual iterator because ranged loop was missing entries when I added
-    // to vector. Also grabbing the fish count before growing the vector in case of hijinx.
-    
-    
-    const uint64_t fish_count = fishes.size();
-    fishes_spawned_today = 0;
-    // Divide collection into 4 parts so it can be sent to four threads.
-    // Will a reference work? will this be too much memory usage/copying?
-    // Create some threads
-    // Ask each to process fish_count / num_threads fish, have them record how many
-    // fish must be added to the vector. When they are done, they can lock the 
-    // "fish_spawned_today" variable and add to it.
-    for(int i = 0; i<num_threads; i++)
-    {
-      uint64_t start = (fish_count / num_threads) * i;
-      uint64_t end = (fish_count / num_threads) * (i+1);
-      if (i == num_threads-1) end = fish_count - 1;
-      threads.push_back(thread(simulateDay, start, end));
-    }
-    for ( auto& th : threads )
-    {
-      if(th.joinable())
-        th.join();
-    }
-    timer.stop();
-    //When all threads have joined,
-    // use fishes.resize(fish_spawned_today, JUVENILE_SPAWN_CYCLE) to add all the
-    // extras at once.. or use a for loop if that reallocates too much.
-    if (fishes_spawned_today > 0) 
-      fishes.resize(fish_count + fishes_spawned_today, JUVENILE_SPAWN_CYCLE);
-    // printFishes(fishes, "After " + to_string(days_left - days_to_sim +1) + " days: ");
-    print("Day {0}, {1} fish.\n", days_to_sim - days_left + 1, fishes.size());
-  }
-  print("Time to sim: {0} seconds.", timer.timeTakenSeconds());
-}
-*/
 
-int main() {
-  //clearScreen();
-  createStyles();
-  unsigned int num_threads_supported = std::thread::hardware_concurrency();
-  //std::cout << n << " concurrent threads are supported.\n";
-  //greetInColour();
-  const int DAYS_TO_SIM = 200; //80; //18;
   
-  //vector<uint8_t> fishes {3,4,3,1,2};
-  // TODO: turn fish into much smaller ints (8 bit) to get optimsation.
-  //vector<uint8_t> fishes;
+  //vector<uint8_t> fishes {3,4,3,1,2};  // example data
   vector<uint8_t> starting_fishes = getFishFromFile(FISH_FILE);
   print("Got {0} lantern fish.\n", starting_fishes.size());  
 
-  //printFishes(fishes, "Initial state: ");
-  // FEARRR!: Will it become too much to store? Is this an exercise in allocation? Will it crash?
-  
-  // TODO: Solve the problem of the great growth of the vector leading to
-  // slow-down and memory usage - already serious at 160 days - that will
-  // make it hard to hit 256.   
-  uint64_t fishes_at_end = simulateFishes(starting_fishes, DAYS_TO_SIM);
-  std::string answer {};
-  scn::prompt("Are we good?", "{0}", answer);
-
-  // Might need threads to make this perform beyond day 160,
-  // though you'd need locks during adds.j
-  // No more threads than cpu cores either.
-  //print("\nAfter {0} days we have ", DAYS_TO_SIM);
-  //print(text_styles[Styles::LOUD_FRIENDLY], "{0} fish.\n", fishes.size());
+  uint64_t fishes_at_end = simulateFishes(starting_fishes, days_to_sim);
 }
+
+vector<size_t> getFishCohortsFromFile(string file_path)
+{
+  // Grab the file handle in a way scn can keep it alive.
+  scn::owning_file fish_file(file_path.c_str(), "r");
+  vector<size_t> fishies(FISH_N_BUFFER, 0 ); // all begin at 0 fish
+  std::string line{};
+  auto result = scn::make_result(fish_file);
+  result = scn::getline(result.range(), line, '\n');
+  if(!line.empty())
+  { // for each ascii character read in
+    for(const char& ch : line)
+    {
+      if (ch != ',')
+      {
+        size_t cycle_day = static_cast<size_t>(ch) - '0';  // char to integer
+        // increment fishies at that stage in breeding cycle
+        fishies[cycle_day] += static_cast<size_t>(1);
+      }
+    }
+  }
+  print("Got fishies.\n");
+
+  return fishies;
+}
+
+
+void printFishCohortSizes(vector<size_t> const& fishies)
+{
+  size_t total_fish{ 0 };
+  print("\tFish with: \n");
+  for (size_t i = 0; i <= SPAWNING_BUFFER; i++)
+  {
+    if (i == SPAWNING_BUFFER)
+    {
+      print("\tSpawning buffer:\t{0}\n", fishies[i]);
+    }
+    else 
+    {
+      print("\t{0} days left in spawn cycle:\t", i);
+      print(text_styles[Styles::STONE], "{0}\n", fishies[i]);
+      total_fish += fishies[i];
+    }
+  }
+  print("Total fish across cohorts: {0}\n\n", total_fish);
+}
+
+// Jake suggested solution; avoid storing and simulating all of the
+// fish. There are only 9 possible states (0-8), so we can track those 9 numbers, 
+// each representing the number of fish that are on that day of their sport cycle.
+
+// create an array of big ints with 10 entries - 1 per cycle day and a buffer slot
+// for rotating the entries
+// 
+// read in fish from file
+// for each number read in
+//   add 1 to that index an an array of uint64_t
+// for each day
+//   move all the 0s to the buffer slot, they're going to be added to day 6 shortly
+//   
+//   for entries 1 - 8, move them left (so they're 0 -7)
+//   add the number of fish in the buffer to day 6 - adults starting a new cycle
+//   move the number of fish in the buffer to day 8, new babies
+void simulateFishAsGroups(const int& days_to_sim)
+{
+  auto fishies = getFishCohortsFromFile(FISH_FILE);
+  printFishCohortSizes(fishies);
+  dmac::Timer timer;
+  timer.start();
+  
+  for (size_t days_left = days_to_sim; days_left > 0; days_left--)
+  {
+    // move all the spawners (0 days left to spawn) to the buffer slot. 
+    // They reset their cycle and their offspring will appear in day 8
+    fishies[SPAWNING_BUFFER] = fishies[SPAWNING];
+    // Move left. All the fish with 6 days left, for example, now have 5.
+    for (size_t cohort = 1; cohort <= JUVENILE_SPAWN_CYCLE; cohort++)
+    {
+      //   for entries 1 - 8, move/copy them left (so they're 0 -7)
+      fishies[cohort - 1] = fishies[cohort];
+    }
+    // add number of fish in the buffer to day 6: adding adults starting a new
+    // cycle to the juveniles who've been alive for 2 days
+    fishies[ADULT_SPAWN_CYCLE] += fishies[SPAWNING_BUFFER];
+    // Spawn the new juveniles our adults made  
+    fishies[JUVENILE_SPAWN_CYCLE] = fishies[SPAWNING_BUFFER];
+  }
+  
+  timer.stop();
+  printFishCohortSizes(fishies);
+  print("Time to simulate: {0}ms\n", timer.timeTakenMilli());
+}
+
+int main() {
+  createStyles();
+  const int DAYS_TO_SIM = 256; //80; //18;  
+
+  //simulateFishIndividually(DAYS_TO_SIM);
+
+  simulateFishAsGroups(DAYS_TO_SIM);
+}
+
